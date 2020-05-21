@@ -92,23 +92,26 @@ def train(epoch):
                                  total=len(training_data_loader)):
         x, x_pred, x_gnd = batch
         x_c = Variable(x.type(Tensor))
-        x_predc = Variable(x_pred.type(Tensor))
-        x_gndc = Variable(x_gnd.type(torch.cuda.LongTensor))
+        x_predc = Variable(x_pred.clone().type(Tensor))
+        #x_gndc = Variable(x_gnd.clone().type(torch.cuda.LongTensor))
+        x_gnd = Variable(x_gnd.clone().type(torch.cuda.LongTensor))
 
         optimizer.zero_grad()
-        net = model(x_c, x_predc, x_c)
+        net = model(x_c, x_predc.clone(), x_c)
         flow_loss = flow_criterion(net['fr_st'], x_predc) + 0.01 * huber_loss(net['out'])
-        seg_loss = seg_criterion(net['outs_softmax'], x_gndc)
+        #pdb.set_trace()
+        seg_loss = seg_criterion(net['outs_softmax'], x_gnd)
+        
         loss = flow_loss + 0.01 * seg_loss
         flow_loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        seg_loss.backward()
+        #seg_loss.backward()
         optimizer.step()
 
         epoch_loss.append(loss.item())
         pred = net['outs_softmax'].data.cpu().numpy()
-        truth = convert_to_1hot(x_gnd[:,None].numpy(), n_class)
+        truth = convert_to_1hot(x_gnd[:,None].cpu().numpy(), n_class)
         LV_dice += categorical_dice(pred, truth, 1)
         Myo_dice += categorical_dice(pred, truth, 2)
         RV_dice += categorical_dice(pred, truth, 3)
@@ -161,7 +164,7 @@ def test():
         print("  testing Dice RV:\t\t{:.6f}".format(RV_dice/test_batches))
 
 
-data_path = '../test'
+data_path = 'test'
 train_set = TrainDataset(data_path, transform=data_augment)
 
 # loading the data
@@ -182,5 +185,3 @@ for epoch in range(0, n_epoch + 1):
         testing_data_loader = DataLoader(dataset=test_set, num_workers=n_worker,
                                          batch_size=1, shuffle=False)
         test()
-
-
